@@ -31,8 +31,6 @@ opt_beta <- opt_beta(n.para, prev, c, weights)
 beta0 <- opt_beta$beta0
 beta <- opt_beta$beta1
 
-data.dev <- generate_ss(ndev, n.para, beta0, beta)
-data.val <- generate_ss(nval, n.para, beta0, beta)
 # function opt_beta
 library(MASS)  # For mvrnorm to simulate predictors
 library(pROC)  # For AUC calculation
