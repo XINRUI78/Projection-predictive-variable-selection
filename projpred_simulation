@@ -28,10 +28,8 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     perf <- performances(vs)$submodels
     perf$size[which.max(replace(perf$elpd, is.na(perf$elpd), -Inf))]
   }
-  
-  ## -------------------------
+
   ## Normal prior reference
-  ## -------------------------
   
   ref_fit_n <- stan_glm(
     formula = as.formula(
@@ -64,7 +62,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     cv_method = "kfold",
     validate_search = TRUE,
     K = 10,
-    nterms_max = min(20, n.para),
+    nterms_max = 20,
     cores = 1,
     seed = SEED + 1000
   )
@@ -89,7 +87,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
   p_suggest_n <- as.vector(
     proj_linpred(
       proj_suggest_n,
-      newdata = data.val[, -1],
+      newdata = xval,
       integrated = TRUE,
       transform = TRUE
     )$pred
@@ -98,7 +96,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
   p_best_n <- as.vector(
     proj_linpred(
       proj_best_n,
-      newdata = data.val[, -1],
+      newdata = xval,
       integrated = TRUE,
       transform = TRUE
     )$pred
@@ -118,9 +116,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     NA
   )
   
-  ## -------------------------
   ## Laplace prior reference
-  ## -------------------------
   
   ref_fit_la <- stan_glm(
     formula = as.formula(
@@ -153,7 +149,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     cv_method = "kfold",
     validate_search = TRUE,
     K = 10,
-    nterms_max = min(20, n.para),
+    nterms_max = 20,
     cores = 1,
     seed = SEED + 3000
   )
@@ -178,7 +174,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
   p_suggest_la <- as.vector(
     proj_linpred(
       proj_suggest_la,
-      newdata = data.val[, -1],
+      newdata = xval,
       integrated = TRUE,
       transform = TRUE
     )$pred
@@ -187,7 +183,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
   p_best_la <- as.vector(
     proj_linpred(
       proj_best_la,
-      newdata = data.val[, -1],
+      newdata = xval,
       integrated = TRUE,
       transform = TRUE
     )$pred
