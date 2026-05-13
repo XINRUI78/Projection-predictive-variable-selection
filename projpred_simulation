@@ -1,7 +1,7 @@
 run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
   
   set.seed(i)
-  SEED <- as.integer(i)
+  seed <- as.integer(i)
   
   data.dev <- generate_ss(ndev, n.para, beta0, beta)
   data.val <- generate_ss(nval, n.para, beta0, beta)
@@ -35,7 +35,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     prior = normal(0, 1),
     prior_intercept = normal(0, 1),
     QR = TRUE,
-    seed = SEED,
+    seed = seed,
     adapt_delta = 0.99,
     iter = 4000,
     cores = 1,
@@ -59,7 +59,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     K = 10,
     nterms_max = min(20, n.para),
     cores = 1,
-    seed = SEED + 1000
+    seed = seed + 1000
   )
   
   size_suggested_n <- suggest_size(vs_n)
@@ -68,14 +68,14 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
   proj_suggest_n <- project(
     vs_n,
     nterms = size_suggested_n,
-    seed = SEED + 10000,
+    seed = seed + 10000,
     ns = 2000
   )
   
   proj_best_n <- project(
     vs_n,
     nterms = size_best_n,
-    seed = SEED + 10001,
+    seed = seed + 10001,
     ns = 2000
   )
   
@@ -124,7 +124,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     prior = laplace(location = 0, scale = 1),
     prior_intercept = normal(0, 1),
     QR = TRUE,
-    seed = SEED + 2000,
+    seed = seed + 2000,
     adapt_delta = 0.99,
     iter = 4000,
     cores = 1,
@@ -148,7 +148,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     K = 10,
     nterms_max = min(20, n.para),
     cores = 1,
-    seed = SEED + 3000
+    seed = seed + 3000
   )
   
   size_suggested_la <- suggest_size(vs_la)
@@ -157,14 +157,14 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
   proj_suggest_la <- project(
     vs_la,
     nterms = size_suggested_la,
-    seed = SEED + 40000,
+    seed = seed + 40000,
     ns = 2000
   )
   
   proj_best_la <- project(
     vs_la,
     nterms = size_best_la,
-    seed = SEED + 40001,
+    seed = seed + 40001,
     ns = 2000
   )
   
