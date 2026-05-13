@@ -1,3 +1,28 @@
+proj_results <- do.call(
+  rbind,
+  lapply(1:100, function(i) {
+    run_projpred_one(i, ndev, n.para, beta0, beta, nval)
+  })
+)
+
+library(tidyverse)
+library(rstanarm)
+library(brms)
+library(projpred)
+library(tidybayes)
+library(broom.mixed)
+library(pROC)
+library(patchwork)
+library(cutpointr)
+library(gt)
+library(coda)
+library(loo)
+library(glmnet)
+library(detectseparation)
+library(brglm2)
+library(foreach)
+library(MASS)
+
 run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
   
   set.seed(i)
