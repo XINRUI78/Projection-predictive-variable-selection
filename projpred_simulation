@@ -1,10 +1,3 @@
-proj_results <- do.call(
-  rbind,
-  lapply(1:100, function(i) {
-    run_projpred_one(i, ndev, n.para, beta0, beta, nval)
-  })
-)
-
 library(tidyverse)
 library(rstanarm)
 library(brms)
@@ -23,34 +16,41 @@ library(brglm2)
 library(foreach)
 library(MASS)
 
+proj_results <- do.call(
+  rbind,
+  lapply(1:100, function(i) {
+    run_projpred_one(i, ndev, n.para, beta0, beta, nval)
+  })
+)
+
 run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
-  
+
   set.seed(i)
-  seed <- as.integer(i)
-  
+  SEED <- as.integer(i)
+
   data.dev <- generate_ss(ndev, n.para, beta0, beta)
   data.val <- generate_ss(nval, n.para, beta0, beta)
-  
+
   xval <- data.val[, -1]
   yval <- data.val[, 1]
   all_vars <- colnames(data.dev)[-1]
-  
+
   method_result <- matrix(NA, nrow = 6, ncol = 9 + n.para)
-  
+
   get_selected <- function(vs, k) {
     sel_vars <- ranking(vs)$fulldata[1:k]
     as.integer(all_vars %in% sel_vars)
   }
-  
+
   get_best_size <- function(vs) {
     perf <- performances(vs)$submodels
     perf$size[which.max(replace(perf$elpd, is.na(perf$elpd), -Inf))]
   }
-  
+
   ## -------------------------
   ## Normal prior reference
   ## -------------------------
-  
+
   ref_fit_n <- stan_glm(
     formula = as.formula(
       paste("y", paste(colnames(data.dev)[-1], collapse = " + "), sep = " ~ ")
@@ -60,50 +60,59 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     prior = normal(0, 1),
     prior_intercept = normal(0, 1),
     QR = TRUE,
-    seed = seed,
+    seed = SEED,
     adapt_delta = 0.99,
     iter = 4000,
     cores = 1,
     chains = 4
   )
-  
+
   p_ref_n <- colMeans(posterior_epred(ref_fit_n, newdata = xval))
-  
+
   method_result[1, ] <- c(
     0.3, 0.8, ndev, "ref-nor",
     measures(yval, p_ref_n),
     rep(1, n.para),
     NA
   )
-  
-  vs_n <- cv_varsel(
-    ref_fit_n,
-    method = "forward",
-    cv_method = "kfold",
-    validate_search = TRUE,
-    K = 10,
-    nterms_max = 25,
-    cores = 1,
-    seed = seed + 1000
-  )
-  
+
+  cl <- parallel::makeCluster(4)
+  doParallel::registerDoParallel(cl)
+
+  vs_n <- tryCatch({
+    cv_varsel(
+      ref_fit_n,
+      method = "forward",
+      cv_method = "kfold",
+      validate_search = TRUE,
+      K = 5,
+      nterms_max = 23,
+      parallel = TRUE,
+      seed = SEED + 1000
+    )
+  }, finally = {
+    parallel::stopCluster(cl)
+    foreach::registerDoSEQ()
+  })
+
+
   size_suggested_n <- suggest_size(vs_n)
   size_best_n <- get_best_size(vs_n)
-  
+
   proj_suggest_n <- project(
     vs_n,
     nterms = size_suggested_n,
-    seed = seed + 10000,
+    seed = SEED + 10000,
     ns = 2000
   )
-  
+
   proj_best_n <- project(
     vs_n,
     nterms = size_best_n,
-    seed = seed + 10001,
+    seed = SEED + 10001,
     ns = 2000
   )
-  
+
   p_suggest_n <- as.vector(
     proj_linpred(
       proj_suggest_n,
@@ -112,7 +121,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
       transform = TRUE
     )$pred
   )
-  
+
   p_best_n <- as.vector(
     proj_linpred(
       proj_best_n,
@@ -121,25 +130,25 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
       transform = TRUE
     )$pred
   )
-  
+
   method_result[2, ] <- c(
     0.3, 0.8, ndev, "nor-1se",
     measures(yval, p_suggest_n),
     get_selected(vs_n, size_suggested_n),
     NA
   )
-  
+
   method_result[3, ] <- c(
     0.3, 0.8, ndev, "nor-best",
     measures(yval, p_best_n),
     get_selected(vs_n, size_best_n),
     NA
   )
-  
+
   ## -------------------------
   ## Laplace prior reference
   ## -------------------------
-  
+
   ref_fit_la <- stan_glm(
     formula = as.formula(
       paste("y", paste(colnames(data.dev)[-1], collapse = " + "), sep = " ~ ")
@@ -149,50 +158,58 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     prior = laplace(location = 0, scale = 1),
     prior_intercept = normal(0, 1),
     QR = TRUE,
-    seed = seed + 2000,
+    seed = SEED + 2000,
     adapt_delta = 0.99,
     iter = 4000,
     cores = 1,
     chains = 4
   )
-  
+
   p_ref_la <- colMeans(posterior_epred(ref_fit_la, newdata = xval))
-  
+
   method_result[4, ] <- c(
     0.3, 0.8, ndev, "ref-la",
     measures(yval, p_ref_la),
     rep(1, n.para),
     NA
   )
-  
-  vs_la <- cv_varsel(
-    ref_fit_la,
-    method = "forward",
-    cv_method = "kfold",
-    validate_search = TRUE,
-    K = 10,
-    nterms_max = 25,
-    cores = 1,
-    seed = seed + 3000
-  )
-  
+  cl <- parallel::makeCluster(4)
+  doParallel::registerDoParallel(cl)
+
+  vs_la <- tryCatch({
+    cv_varsel(
+      ref_fit_la,
+      method = "forward",
+      cv_method = "kfold",
+      validate_search = TRUE,
+      K = 5,
+      nterms_max = 20,
+      parallel = TRUE,
+      seed = SEED + 3000
+    )
+  }, finally = {
+    parallel::stopCluster(cl)
+    foreach::registerDoSEQ()
+  })
+
+
   size_suggested_la <- suggest_size(vs_la)
   size_best_la <- get_best_size(vs_la)
-  
+
   proj_suggest_la <- project(
     vs_la,
     nterms = size_suggested_la,
-    seed = seed + 40000,
+    seed = SEED + 40000,
     ns = 2000
   )
-  
+
   proj_best_la <- project(
     vs_la,
     nterms = size_best_la,
-    seed = seed + 40001,
+    seed = SEED + 40001,
     ns = 2000
   )
-  
+
   p_suggest_la <- as.vector(
     proj_linpred(
       proj_suggest_la,
@@ -201,7 +218,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
       transform = TRUE
     )$pred
   )
-  
+
   p_best_la <- as.vector(
     proj_linpred(
       proj_best_la,
@@ -210,21 +227,21 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
       transform = TRUE
     )$pred
   )
-  
+
   method_result[5, ] <- c(
     0.3, 0.8, ndev, "la-1se",
     measures(yval, p_suggest_la),
     get_selected(vs_la, size_suggested_la),
     NA
   )
-  
+
   method_result[6, ] <- c(
     0.3, 0.8, ndev, "la-best",
     measures(yval, p_best_la),
     get_selected(vs_la, size_best_la),
     NA
   )
-  
+
   colnames(method_result) <- c(
     "prevalence",
     "anticipated c-stat",
@@ -237,6 +254,7 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
     paste0("varsel", 1:n.para),
     "option"
   )
-  
+
   method_result
 }
+
