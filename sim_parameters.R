@@ -14,40 +14,28 @@ noise <- percentage[4] * n.para   # 30% noise predictive variables
 # Assign relative strengths
 weights <- c(rep(1, strong), rep(0.5, medium), rep(0.25, weak), rep(0, noise))
 
-# recommended sample size
+# Calculate recommended sample size
 install.packages("devtools")
-require("devtools")
 devtools::install_github("mpavlou/samplesizedev")
-require(samplesizedev)
 library(samplesizedev)
 
 rss <- samplesizedev(outcome = "Binary", S = 0.9, phi = prev, c = c, p = n.para)
-ndev <- rss$sim
-ndev1 <- round(ndev/2)
-ndev2 <- round(ndev/4)
+ndev <- rss$sim # recommended sample size
+ndev1 <- round(ndev/2) # half the recommended sample size
+ndev2 <- round(ndev/4) # one-quarter recommended sample size
 
-# Obtain the true coefficients 
-opt_beta <- opt_beta(n.para, prev, c, weights)
-beta0 <- opt_beta$beta0
-beta <- opt_beta$beta1
-
-# function opt_beta
-library(MASS)  # For mvrnorm to simulate predictors
-library(pROC)  # For AUC calculation
-
-# Define the optimizer function
+# The optimizer function that obtains the true coefficients
 opt_beta <- function(n.para, prev, c, weights) {
   # Generate predictors (X) from multivariate normal distribution
   n = 500000
   x <- mvtnorm::rmvnorm(n, mean = rep(0, n.para), sigma = diag(n.para))
-  
   objective <- function(para){
     beta0 <- para[1]  # Intercept
     s <- para[2]      # Scaling factor
     beta1 <- s * weights
     eta <- rep(beta0, n) + x %*% beta1
     p <- 1/(1+exp(-eta))
-    y <- stats::rbinom(n, 1, p)
+    y <- rbinom(n, 1, p)
     pest <- mean(y)
     cstat <- pROC::roc(response = as.vector(y), predictor = as.vector(p), levels = c(0, 1), direction = "<")
     cest <- as.vector(cstat$auc)
@@ -60,15 +48,15 @@ opt_beta <- function(n.para, prev, c, weights) {
   result <- optim(
     par = initial_para,
     fn = objective,
-    method = "Nelder-Mead", 
+    method = "Nelder-Mead",
     control = list(abstol = tol)
   )
-  
+
   # Extract optimized coefficients
   beta0_opt <- result$par[1]
   s_opt <- result$par[2]
   beta1_opt <- s_opt * weights
-  
+
   list(
     beta0 = beta0_opt,
     beta1 = beta1_opt,
@@ -76,10 +64,7 @@ opt_beta <- function(n.para, prev, c, weights) {
   )
 }
 
-# generate a dataset (predictors from independent standard normal distributions)
-generate_ss <- function(n, n.para, beta0, beta){
-  x <- mvtnorm::rmvnorm(n, mean = rep(0, n.para), sigma = diag(n.para))
-  eta <- rep(beta0, n) + x%*%beta
-  p <- 1/(1+exp(-eta))
-  y <- stats::rbinom(n, 1, p)
-  data <- data.frame(y,x)}
+# Obtain the true coefficients
+opt_beta <- opt_beta(n.para, prev, c, weights)
+beta0 <- opt_beta$beta0
+beta <- opt_beta$beta1
