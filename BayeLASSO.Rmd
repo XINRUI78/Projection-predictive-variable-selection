@@ -1,0 +1,586 @@
+---
+title: 'Bayesian predictive projection for variable selection'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(123)
+```
+
+## Setup
+#### Data
+I set the true outcome prevalence to 0.3, the true c-statistic to 0.8 and the number of predictor variables to 30. Based on these settings, the recommended development sample size for an expected calibration slope of 0.9 was 1505. I set the development dataset to a size of 752, which was half of the recommended sample size, and set the validation dataset to a size of 10,000. 
+
+The development and validation datasets each contained a binary outcome and 30 continuous predictor variables. The predictor variables were generated from a multivariate normal distribution N(0, $I_{30}$). The predictor variables were categorized into four types according to their predictive effects: strong, medium, weak and noise, with corresponding relative effect sizes of 1, 0.5, 0.25 and 0 respectively. We specified that the relative proportions of strong, medium, weak and noise variables were 0.1, 0.2, 0.2, 0.5. 
+
+```{r}
+# development dataset of size 752
+data.dev <- read.csv("data_dev.csv")
+sam <- sample(1:752, 376) 
+data.dev <- data.dev[sam,]
+x <- data.dev[,-1]
+y <- data.dev[,1]
+
+# validation dataset of size 10000
+data.val <- read.csv("data_val.csv")
+xval <- data.val[,-1]
+yval <- data.val[,1]
+```
+
+#### Packages
+I used the following packages through the analysis.
+
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(rstanarm)
+library(brms)
+library(projpred)
+library(tidybayes)
+library(broom.mixed)
+library(pROC)
+library(patchwork)
+library(cutpointr)
+library(gt)
+library(coda)
+library(loo)
+library(glmnet)
+library(detectseparation)
+library(brglm2)
+library(foreach)
+library(MASS)
+options(mc.cores = parallel::detectCores())
+```
+
+## Fit a reference model
+I fitted a Bayesian logistic regression with all predictor variables using the stan_glm function. I set priors for the individual coefficients and the intercept as weakly informative normal distributions N(0,1).
+
+```{r}
+SEED = 7
+set.seed(SEED)
+refform <- as.formula(paste("y", paste(colnames(data.dev)[-1], collapse=" + "), sep=" ~ "))
+ref_fit <- stan_glm(formula = refform, 
+                    data = data.dev,
+                    family = binomial(link = "logit"), 
+                    prior = laplace(location = 0, scale = 1), 
+                    prior_intercept = normal(0, 1), 
+                    QR = TRUE, 
+                    seed = SEED, 
+                    adapt_delta = 0.99,
+                    iter = 4000,
+                    cores = 4,
+                    chains = 4)
+```
+
+## Check model diagnostics
+
+```{r}
+summary(ref_fit) 
+```
+
+The model converged well, with no divergent transitions, good rhat values (all ~ 1), and large effective sample size (> 5,000) for all parameters.
+Next, I proceeded with a visual posterior predictive check and used PSIS-LOO cross validation to check for influential outliers.
+
+```{r}
+pp_check(ref_fit, plotfun = "bars", nreps = 500)
+loo_reference_fit <- loo(ref_fit)
+loo_reference_fit
+plot(loo_reference_fit)
+```
+
+Using the posterior predictive check, the observed (training) data seemed to match the simulated draws (n = 500) from the posterior predictive distribution fairly well. All points had a Pareto shape parameter k < 0.5, suggesting that these observations did not exert an overly strong influence on the model fit.
+
+## Projection predictive variable selection
+
+I performed an initial search through the model space, without cross-validation and using all available data to achieve a series of nested, increasingly complex submodels deemed the solution path. To do this, I used the cv_varsel function from the projpred package. This procedure identifies the submodel that yields predictions most similar to those of the reference model for each submodel size (defined as the number of predictors included). 
+
+```{r, message=FALSE}
+  varsel_pro <- cv_varsel(ref_fit, 
+                       method = 'forward', 
+                       validate_search = F,
+                       cores = 8,
+                       seed = 11)
+```
+
+After projection predictive variable selection, I checked the variable importance, as well the the suggested model size.
+
+```{r}
+(vif <- ranking(varsel_pro)$fulldata)
+(size_suggested <- suggest_size(varsel_pro))
+```
+
+The default suggested size was 2 variables. I compared the performance of submodels with different sizes using different metrics (blue for the default suggested size, red for the size where ELPD was highest) to determine the final set of variables to include in the model.
+
+```{r}
+library(pander)
+s <- summary(
+  varsel_pro,
+  stats = c("elpd", "acc", "auc", "rmse"),
+  deltas = FALSE
+)
+performances(s)$submodels %>%
+  dplyr::select(size, elpd, elpd.se, elpd.diff, elpd.diff.se, acc, acc.se, auc, auc.se, rmse, rmse.se) %>% 
+  pander::pander(
+    split.cell = 80,
+    split.table = Inf,
+    justify = "left",
+    caption = "Feature selection trajectory statistics for the projection submodels"
+  )
+```
+
+```{r}
+perf <- performances(varsel_pro)$submodels
+size_best <- perf$size[which.max(perf$elpd)]
+plot(varsel_pro, stats = c("elpd", "acc", "auc", "rmse")) +
+  geom_vline(xintercept = size_suggested, color = "blue", linetype = "dashed") +
+  geom_vline(xintercept = size_best, color = "red", linetype = "dashed") 
+```
+
+I found that there was an elpd “bulge” from size 6. That is, from size 6, the elpd point estimate and its one standard error interval lied completely above the point estimate of the reference model elpd, indicating potentially over-optimistic elpd estimates. We therefore include the search in the CV, yielding more reliable elpd estimates and uncertainties for the different model sizes.
+
+I performed projection predictive variable selection using forward search and 10-fold cross-validation.
+
+```{r, message=FALSE}
+  varsel_proj <- cv_varsel(ref_fit, 
+                       method = 'forward', 
+                       cv_method = "kfold",
+                       validate_search = T,
+                       K = 10,
+                       cores = 8,
+                       seed = 11)
+```
+
+After projection predictive variable selection, I checked the variable importance, as well the the suggested model size.
+
+```{r}
+(vif <- ranking(varsel_proj)$fulldata)
+(size_suggested <- suggest_size(varsel_proj))
+```
+
+The default suggested size was 4 variables. I compared the performance of submodels with different sizes using different metrics (blue for the default suggested size, red for the size where ELPD was highest) to determine the final set of variables to include in the model.
+
+```{r}
+library(pander)
+s <- summary(
+  varsel_proj,
+  stats = c("elpd", "acc", "auc", "rmse"),
+  deltas = FALSE
+)
+performances(s)$submodels %>%
+  dplyr::select(size, elpd, elpd.se, elpd.diff, elpd.diff.se, acc, acc.se, auc, auc.se, rmse, rmse.se) %>% 
+  pander::pander(
+    split.cell = 80,
+    split.table = Inf,
+    justify = "left",
+    caption = "Feature selection trajectory statistics for the projection submodels"
+  )
+```
+
+```{r}
+perf <- performances(varsel_proj)$submodels
+size_best <- perf$size[which.max(perf$elpd)]
+plot(varsel_proj, stats = c("elpd", "acc", "auc", "rmse")) +
+  geom_vline(xintercept = size_suggested, color = "blue", linetype = "dashed") +
+  geom_vline(xintercept = size_best, color = "red", linetype = "dashed") 
+```
+
+I observed that AUC, RMSE and ELPD reached their best performance at a model size of 6. Accuracy at this model size was also similar to that of the reference model. The suggested model size of 4 was selected using the 1-SE rule, which identifies the smallest submodel whose predictive performance is not statistically distinguishable from that of the best-performing submodel.
+
+## Projection
+Given the above results, I performed projection of the reference model’s posterior onto submodels with 4 and 6 features.
+
+```{r}
+proj_suggest <- project(varsel_proj, 
+               nterms = size_suggested, 
+               seed = SEED, ns = 2000)
+proj_best <- project(varsel_proj, 
+               nterms = size_best, 
+               seed = SEED, ns = 2000)
+```
+
+I calculated the predicted probability based on the submodel using the proj_linpred function. I set integrated = TRUE to average over the projected posterior draws and transform = TRUE to obtain predictions on the probability scale.
+
+```{r}
+pred_suggest <- proj_linpred(proj_suggest,
+                     newdata = data.val[,-1], 
+                     integrated = TRUE,
+                     transform = TRUE
+)
+pred_best <- proj_linpred(proj_best,
+                     newdata = data.val[,-1], 
+                     integrated = TRUE,
+                     transform = TRUE
+)
+```
+
+## Performance
+I calculated the performance metrics of these models and compared them with other frequentist models.
+
+```{r, echo=FALSE}
+measures <- function(yval, p_val) {
+    
+    eta_val <- log(p_val/(1 - p_val))
+    
+    # Calibration slope
+    fitcal <- speedglm::speedglm(yval ~ eta_val, family = binomial())
+    cal_slope <- as.vector(coef(fitcal)[2]) 
+    
+    # Calibration in the large
+    off <- speedglm::speedglm(yval ~ 1, offset = eta_val, family = binomial())
+    cal_large <- as.vector(coef(off))
+    
+    # AUC
+    cstat <- pROC::roc(response = yval, predictor = as.vector(p_val), levels = c(0, 1), direction = "<")
+    auc <- as.vector(cstat$auc)
+    
+    # Root mean square prediction error (RMSPE)
+    rmspe <- sqrt(mean((p_val - yval)^2))
+    return(c(cal_slope, cal_large, auc, rmspe))
+}
+```
+
+```{r}
+p_suggest <- pred_suggest$pred[1,]
+meas_suggest <- measures(yval, p_suggest)
+suggest_stat <- c(size_suggested, meas_suggest)
+cat("calibration slope, calibration in the large, auc, rmse values:", meas_suggest)
+
+p_best <- pred_best$pred[1,]
+meas_best <- measures(yval, p_best)
+best_stat <- c(size_best, meas_best)
+cat("calibration slope, calibration in the large, auc, rmse values:", meas_best)
+```
+
+```{r, echo=FALSE}
+backward_pvalue <- function(data, response, p_threshold = 0.05) {
+  
+    # Start with the full model for backward elimination
+    current_formula <- as.formula(paste(response, "~ ."))
+    model <- glm(current_formula, data = data, family = binomial)
+    predictors <- setdiff(names(data), response)
+  
+  # Main loop for stepwise selection
+  while (TRUE) {
+    removed <- FALSE
+    
+    # Backward Step: Remove predictors with p-value > threshold
+      p_values <- summary(model)$coefficients[-1, 4]  # Exclude intercept
+      names(p_values) <- rownames(summary(model)$coefficients)[-1]  # Get predictor names
+      max_pval <- max(p_values, na.rm = TRUE)
+      
+      # If there is a predictor to remove with p-value > threshold
+      if (max_pval > p_threshold) {
+        worst_predictor <- names(which.max(p_values))
+        current_formula <- as.formula(paste(response, "~", paste(setdiff(predictors, worst_predictor), collapse = " + ")))
+        model <- glm(current_formula, data = data, family = binomial)
+        predictors <- setdiff(predictors, worst_predictor)
+        removed <- TRUE
+      }
+    
+    
+    # Stop if no further changes can be made
+    if (!removed) {
+      break
+    }
+  }
+  
+  return(model)
+}
+backward_lrt <- function(data, response, p_threshold = 0.05) {
+  predictors <- setdiff(names(data), response)
+  current_formula <- as.formula(paste(response, "~", paste(predictors, collapse = " + ")))
+  current_model <- glm(current_formula, data = data, family = binomial)
+  
+  while (length(predictors) > 1) {
+    p_values <- sapply(predictors, function(var) {
+      reduced_predictors <- setdiff(predictors, var)
+      reduced_formula <- as.formula(paste(response, "~", paste(reduced_predictors, collapse = " + ")))
+      reduced_model <- glm(reduced_formula, data = data, family = binomial)
+      
+      # Likelihood Ratio Test
+      lrt <- anova(reduced_model, current_model, test = "LRT")
+      pval <- lrt[2, "Pr(>Chi)"]
+      return(pval)
+    })
+    
+    max_p <- max(p_values, na.rm = TRUE)
+    if (max_p > p_threshold) {
+      worst_var <- names(which.max(p_values))
+      predictors <- setdiff(predictors, worst_var)
+      current_formula <- as.formula(paste(response, "~", paste(predictors, collapse = " + ")))
+      current_model <- glm(current_formula, data = data, family = binomial)
+    } else {
+      break
+    }
+  }
+  
+  return(current_model)
+}
+# Main function
+back_logit <- function(data, response, crit, p_threshold = 0.05) {
+  data[[response]] <- as.factor(data[[response]])
+  
+  full_model <- glm(as.formula(paste(response, "~ .")), data = data, family = binomial)
+  
+  if (crit == "AIC" || crit == "BIC") {
+    final_model <- step(full_model, direction = "backward", k = ifelse(crit == "AIC", 2, log(nrow(data))))
+    
+  } else if (crit == "p_value") {
+    final_model <- backward_pvalue(data, response, p_threshold)
+    
+  } else if (crit == "LRT") {
+    final_model <- backward_lrt(data, response, p_threshold)
+    
+  } else {
+    stop("Invalid criterion. Use 'AIC', 'BIC', 'p_value', or 'LRT'.")
+  }
+  
+  back_predictors <- names(coef(final_model))[-1]  # Exclude intercept
+  all_predictors <- setdiff(names(data), response)
+  indicator <- ifelse(all_predictors %in% back_predictors, 1, 0)
+  
+  return(list(
+    varsel_back = indicator,
+    backmodel = final_model
+  ))
+}
+
+```
+
+```{r, echo=FALSE}
+unilogit <- function(x, y, p_threshold = 0.05) {
+  
+  # Ensure y is a factor for logistic regression
+  #y <- as.factor(y)
+  
+  # Initialize storage for results
+  results <- list()
+  varsel_uni <- numeric(ncol(x))  # Binary row for significance
+  
+  # Loop through each column by number
+  for (i in 1:ncol(x)) {
+    
+    # Fit univariate logistic regression using column index
+    predictor <- x[, i]
+    model <- glm(y ~ predictor, family = binomial)
+    
+    # Extract p-value
+    summary_stats <- summary(model)$coefficients
+    p_value <- summary_stats[2, 4]
+    
+    # Determine significance
+    varsel_uni[i] <- ifelse(p_value < p_threshold, 1, 0)
+  }  
+  
+  # Create the final model using significant variables
+  significant_vars <- which(varsel_uni == 1)
+  if (length(significant_vars) > 0) {
+    final_formula <- as.formula(paste("y ~", paste(paste0("x[,", significant_vars, "]"), collapse = " + ")))
+    final_model <- glm(final_formula, family = binomial)
+  } else {
+    final_model <- glm(y ~ 1, family = binomial)
+  }
+  
+  # Return results
+  return(list(
+    varsel_uni = varsel_uni,
+    uni = final_model
+  ))
+  }
+
+```
+
+```{r, echo=FALSE}
+# Inputs
+
+#' @param x        a matrix, the design matrix
+#' @param y        a vector, the binary response variable
+#' @param bn       a scalar, the number of bootstrap iterations
+#' @param method  a string, values "ridge" or "lasso"Numeric where to trim (proportion)
+#' @param nfolds   a scalar, the number of cross-validation folds
+#' @param parallel a logical, TRUE for parallel computing
+#' @param boot     a logical, TRUE means sample with replacement (the default)
+#'
+#' Outputs: a list with two elements.
+#'          - beta.boot is the calculated vector of regression coefficients
+#'          - lambda.boot is vector of beta's
+
+
+mod_penal_ave_foreach <- function(x, y, bn=20, method="ridge", nfolds=10, f = nfolds/(nfolds-1)-1,
+                                  parallel=TRUE,  boot=TRUE){
+  library(glmnet)
+  library(foreach)
+  
+  if (method=="lasso") a=1
+  if (method=="ridge") a=0
+  
+  pred        <- NULL ; beta.boot   <- NULL
+  lambda.boot <- NULL ; cv.boot     <- NULL
+  yval        <- y
+  xval        <- x
+  npred       <- ncol(x)
+  data        <- cbind(x,y)
+  
+  fit <- glmnet(x, y, type.measure = "deviance", family = "binomial", alpha = a, standardize = TRUE, parallel = T)
+  
+  # Obtain the default sequence of lambda, and include some smaller values too
+  lambdaseq <- fit$lambda
+  lambdaseq <- unique(c(lambdaseq, seq( lambdaseq[length(lambdaseq)], lambdaseq[length(lambdaseq)]/20,
+                                        -lambdaseq[length(lambdaseq)]/20 )))
+  
+  # cvd is the cross-validated deviance obtained in each of the 'over-sampled datasets'
+  cvd <- NULL
+  
+  cv.boot <- foreach(i=1:bn, .combine='rbind', .packages=c('MASS','RcppNumerical', 'pROC', 'brglm2', 'detectseparation',
+                                                           'RcppNumerical', 'logistf', 'glmnet')) %do% {
+                                                             
+                                                             
+                                                             withwarnings <- function(expr) {
+                                                               
+                                                               val        <- NULL
+                                                               myWarnings <- NULL
+                                                               wHandler   <- function(w) {
+                                                                 myWarnings <<- c(myWarnings, w$message)
+                                                                 invokeRestart("muffleWarning")
+                                                               }
+                                                               
+                                                               myError  <- NULL
+                                                               eHandler <- function(e) {
+                                                                 myError <<- e$message
+                                                                 NULL
+                                                               }
+                                                               val <- tryCatch(withCallingHandlers(expr, warning = wHandler), error = eHandler)
+                                                               list(value = val, warnings = myWarnings, error=myError)
+                                                             }
+                                                             
+                                                             bs     <- sample(nrow(data), replace=T)
+                                                             databs <- data[bs,]
+                                                             
+                                                             if (boot==FALSE) databs<-data
+                                                             
+                                                             if (f==0) databs  <- data else
+                                                             {
+                                                               
+                                                               bs2     <- sample(nrow(data)*f, replace=T)
+                                                               databs2 <- data[bs2,]
+                                                               databs  <- rbind(databs,databs2)
+                                                             }
+                                                             
+                                                             xbs   <- databs[,1:npred]
+                                                             ybs   <- databs[,npred+1]
+                                                             
+                                                             fitbs <- withwarnings(cv.glmnet(xbs, ybs, type.measure = "deviance", family = "binomial", alpha = a, nfolds = nfolds,
+                                                                                             standardize = TRUE, parallel = parallel, lambda = lambdaseq))
+                                                             
+                                                             
+                                                             if ( length(fitbs$error) == 0 ) {
+                                                               fitbs  <- fitbs$value
+                                                               cvd    <- fitbs$cvm
+                                                               
+                                                             } else
+                                                               
+                                                             {
+                                                               cvd <- cvd
+                                                             }
+                                                             
+                                                             rbind(cvd)
+                                                             
+                                                           }
+  
+  b <- cbind(lambdaseq, colMeans(cv.boot, na.rm = TRUE))
+  
+  # Selected the value of lambda that minimises the cross-validated deviance
+  
+  lambda.boot <- b[order(b[,2]),] [1,1]
+  
+  
+  # Obtain the solution using ridge/lasso at the selected value of lambda for the *original data*
+  
+  fit <- glmnet(x, y, type.measure = "deviance", family = "binomial", alpha = a, standardize = TRUE,
+                parallel = T, lambda = lambdaseq)
+  
+  beta.boot   <- as.vector(coef(fit, s = lambda.boot))
+  
+  return(list("beta.boot" = beta.boot, "lambda.boot" = lambda.boot))
+}
+```
+
+```{r, meassage = FALSE, warning = FALSE}
+# frequentist full model
+fullfit <- glm(y ~ ., data = data.dev, family = 'binomial')
+eta_full <- as.matrix(cbind(1,xval))%*%coef(fullfit)
+p_full <- as.vector(1/(1+exp(-eta_full)))
+full_stat <- c(30, measures(yval, p_full))
+
+# BE with p-value threshold of 0.05
+p_threshold = 0.05
+back_05 <- back_logit(data.dev, "y", "LRT", 0.05) 
+varsel_back_05 <- back_05$varsel_back
+backmodel_05 <- back_05$backmodel
+back_eta_05 <- as.matrix(cbind(1,xval[,varsel_back_05 == 1]))%*%coef(backmodel_05)
+back_p_05 <- as.vector(1/(1+exp(-back_eta_05)))
+back_stat <- c(sum(varsel_back_05), measures(yval, back_p_05))
+
+# UVS with p-value threshold of 0.05
+p_threshold <- 0.05
+uni_05 <- unilogit(x, y, p_threshold) 
+varsel_uni_05 <- uni_05$varsel_uni
+unimodel_05 <- uni_05$uni
+uni_eta_05 <- as.matrix(cbind(1, xval[, varsel_uni_05 == 1])) %*% coef(unimodel_05)
+uni_p_05 <- as.vector(1 / (1 + exp(-uni_eta_05)))
+uni_stat <- c(sum(varsel_uni_05), measures(yval, uni_p_05))
+
+# LASSO-min
+lasso <- glmnet::cv.glmnet(as.matrix(x), y, alpha = 1, family = "binomial", type.measure = "deviance")
+lambda_min <- lasso$lambda.min 
+lassomin_p <- as.vector(predict(lasso, as.matrix(xval), s = lambda_min, type="response"))
+varsel_min <- ifelse(as.numeric(coef(lasso, s = lambda_min)[-1]) != 0, 1, 0)
+LSmin_stat <- c(sum(varsel_min), measures(yval, lassomin_p))
+
+# LASSO-mod
+nfolds <- 10
+f <- nfolds / (nfolds - 1) - 1
+mod_lasso <- mod_penal_ave_foreach(x = as.matrix(x), y = y, bn = 20, method = "lasso", f = f,
+                                   parallel = FALSE, nfolds = nfolds, boot = TRUE)
+eta_mod_lasso <- as.matrix(cbind(1,xval))%*% mod_lasso$beta.boot
+p_mod_lasso <- as.vector(1/(1+exp(-eta_mod_lasso)))
+varsel_mod_lasso <- ifelse(as.numeric(mod_lasso$beta.boot)[-1] != 0, 1, 0)
+LSmod_stat <- c(sum(varsel_mod_lasso), measures(yval, p_mod_lasso))
+
+# Bayesian reference model
+p_ref <- colMeans(posterior_epred(ref_fit, newdata = xval))
+ref_stat <- c(30, measures(yval, p_ref))
+```
+
+```{r}
+model <- c('Bayesian reference model',
+           'Projected submodel (suggest)',
+           'Projected submodel (best)',
+           'full model',
+           'BE-0.05',
+           'UVS-0.05',
+           'LASSO-min',
+           'LASSO-mod')
+df <- data.frame(
+  Model = model,
+  do.call(rbind, list(
+  ref_stat,
+  suggest_stat,
+  best_stat,
+  full_stat,
+  back_stat,
+  uni_stat,
+  LSmin_stat,
+  LSmod_stat))
+)
+colnames(df)[-1] <- c("Number of predictors","Calibration slope", "Calibration in the large", "AUC", "RMSE")
+df[-1] <- round(df[-1], 3)
+pander(
+  df,
+  justify = c("left", rep("center", ncol(df) - 1)),
+  caption = "Model performance comparison"
+)
+```
+
