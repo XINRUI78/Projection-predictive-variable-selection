@@ -1,3 +1,22 @@
+# function run_one_prior() 
+# The code fits Bayesian logistic regression reference models to the development dataset using all candidate predictors and a prespecified 
+# prior distribution. Predicted probabilities are then obtained for the validation dataset and used to evaluate predictive performance.
+# Projection predictive variable selection is subsequently applied using forward search with 5-fold cross-validation. 
+# Two projected submodels are selected:
+# a suggested model using the 1-SE rule (model_suggest)
+# and a model with the best ELPD (model_best).
+# Predicted probabilities from these projected submodels are then calculated on the validation dataset and used to assess predictive performance.
+# output: the predictive performance of three models 
+
+# function run_projpred_one()
+# This function calls run_one_prior() twice:
+#   1. prior N(0,1) for coefficients
+#   2. prior laplace(0,1) for coefficients
+#
+# therefore, one complete simulation replicate is performed
+# for each prior specification.
+
+
 library(tidyverse)
 library(rstanarm)
 library(projpred)
