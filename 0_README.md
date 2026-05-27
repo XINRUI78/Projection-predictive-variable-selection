@@ -28,20 +28,6 @@ The main performance measures include:
 
 ---
 
-
-
-For each simulated dataset, the code:
-
-1. Generates a development dataset.
-2. Generates an independent validation dataset.
-3. Fits prediction models using different variable-selection methods.
-4. Evaluates model performance on the validation dataset.
-5. Saves performance measures and selected predictors.
-
-
-
----
-
 ## Main R Files
 
 ### `1_sim_parameters.R`
