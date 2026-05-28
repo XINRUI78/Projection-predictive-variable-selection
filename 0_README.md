@@ -90,17 +90,20 @@ Therefore, for given simulated development and validation dataset, it fits and e
 
 This is the main script used to run the simulation 100 times.
 
-### `frequentist_methods.R`
+### `6_frequentist_methods.R`
 
-Contains code for traditional frequentist methods, such as:
-
-- full maximum likelihood logistic regression
-- univariable screening
+Contains code for traditional frequentist methods:
+- univariable selection
 - backward elimination
-- LASSO
 - modified LASSO
-- ridge regression
-- random forest, if included
 
 Run this file after loading the data-generation and performance-measure functions.
 
+### `7_freq_simulation.R`
+
+We evaluate the predictive performance of models developed using following variable selection methods 
+- MLE logistic regression
+- univariable selection
+- backward elimination
+- LASSO
+- modified LASSO.
