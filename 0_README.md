@@ -66,19 +66,25 @@ run_one_prior()
 run_projpred_one()
 ```
 #function run_one_prior()
-The code fits Bayesian logistic regression reference models using all variables and a specified prior distribution. It then applies projection predictive variable selection using forward search with 5-fold cross-validation.
-It is designed so the same code can be reused for different priors.
+The code fits Bayesian logistic regression reference models to the development dataset using all candidate predictors and a prespecified 
+prior distribution. Predicted probabilities are then obtained for the validation dataset and used to evaluate predictive performance. Projection predictive variable selection is subsequently applied using forward search with 5-fold cross-validation. 
+Two projected submodels are selected:
+ a suggested model using the 1-SE rule (model_suggest)
+ and a model with the best ELPD (model_best).
+Predicted probabilities from these projected submodels are then calculated on the validation dataset and used to assess predictive performance.
+Output: the predictive performance of three models 
 
 #function run_projpred_one()
-It runs one complete simulation replicate.
-For one simulated development and validation dataset, it fits and evaluates:
+This function calls run_one_prior() twice:
+   1. prior N(0,1) for coefficients
+   2. prior laplace(0,1) for coefficients.
+Therefore, for given simulated development and validation dataset, it fits and evaluates:
 1. Normal-prior reference model
 2. Normal-prior projected suggested model (model size is selected using 1-se rule)
 3. Normal-prior projected best model (model size is selected using the best elpd)
 4. Laplace-prior reference model
 5. Laplace-prior projected suggested model (model size is selected using 1-se rule)
 6. Laplace-prior projected best model (model size is selected using the best elpd)
-
 
 ### `5_run_simulation.R`
 
