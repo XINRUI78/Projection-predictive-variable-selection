@@ -1,10 +1,6 @@
 library(doParallel)
 library(foreach)
 
-freq_n <- perform_n(ndev, n.para, beta0, beta, nval)
-freq_n_2 <- perform_n(ndev1, n.para, beta0, beta, nval)
-freq_n_4 <- perform_n(ndev2, n.para, beta0, beta, nval)
-
 perform_n <- function(ndev, n.para, beta0, beta, nval){
 
   # Register parallel backend with the number of cores available
@@ -167,3 +163,6 @@ perform_n <- function(ndev, n.para, beta0, beta, nval){
   return(results)
 }
 
+freq_n <- perform_n(ndev, n.para, beta0, beta, nval)
+freq_n_2 <- perform_n(ndev1, n.para, beta0, beta, nval)
+freq_n_4 <- perform_n(ndev2, n.para, beta0, beta, nval)
