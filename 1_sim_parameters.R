@@ -17,8 +17,9 @@ weights <- c(rep(1, strong), rep(0.5, medium), rep(0.25, weak), rep(0, noise))
 # Calculate recommended sample size
 library(samplesizedev)
 
-rss <- samplesizedev(outcome = "Binary", S = 0.9, phi = prev, c = c, p = n.para)
-ndev <- rss$sim # recommended sample size
+#rss <- samplesizedev(outcome = "Binary", S = 0.9, phi = prev, c = c, p = n.para)
+#ndev <- rss$sim # recommended sample size
+ndev <- 1538
 ndev1 <- round(ndev/2) # half the recommended sample size
 ndev2 <- round(ndev/4) # one-quarter recommended sample size
 
