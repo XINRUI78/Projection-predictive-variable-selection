@@ -15,8 +15,6 @@ noise <- percentage[4] * n.para   # 30% noise predictive variables
 weights <- c(rep(1, strong), rep(0.5, medium), rep(0.25, weak), rep(0, noise))
 
 # Calculate recommended sample size
-install.packages("devtools")
-devtools::install_github("mpavlou/samplesizedev")
 library(samplesizedev)
 
 rss <- samplesizedev(outcome = "Binary", S = 0.9, phi = prev, c = c, p = n.para)
