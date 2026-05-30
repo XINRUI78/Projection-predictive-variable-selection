@@ -82,7 +82,6 @@ run_one_prior <- function(data.dev, data.val, ndev, n.para,
       validate_search = TRUE,
       K = K,
       nterms_max = min(nterms_max, n.para),
-      parallel = TRUE,
       seed = seed_cv
     )
 
