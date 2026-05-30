@@ -1,10 +1,11 @@
+library(speedglm)
 measures <- function(yval, p_val) {
   eta_val <- log(p_val/(1 - p_val))
   # Calibration slope
-  fitcal <- speedglm::speedglm(yval ~ eta_val, family = binomial())
+  fitcal <- speedglm(yval ~ eta_val, family = binomial())
   cal_slope <- as.vector(coef(fitcal)[2])
   # Calibration in the large
-  off <- speedglm::speedglm(yval ~ 1, offset = eta_val, family = binomial())
+  off <- speedglm(yval ~ 1, offset = eta_val, family = binomial())
   cal_large <- as.vector(coef(off))
   # AUC
   cstat <- pROC::roc(response = yval, predictor = as.vector(p_val), levels = c(0, 1), direction = "<")
