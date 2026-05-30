@@ -1,4 +1,3 @@
-require(speedglm)
 library(speedglm)
 measures <- function(yval, p_val) {
   eta_val <- log(p_val/(1 - p_val))
