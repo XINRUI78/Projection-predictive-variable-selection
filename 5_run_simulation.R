@@ -1,3 +1,4 @@
+source("0_install_packages.R")
 source("1_sim_parameters.R")
 source("2_data_generation.R")
 source("3_performance_measures.R")
