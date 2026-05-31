@@ -191,19 +191,5 @@ run_projpred_one <- function(i, ndev, n.para, beta0, beta, nval) {
   )
 
   method_result <- rbind(res_norm, res_laplace)
-
-  colnames(method_result) <- c(
-    "prevalence",
-    "anticipated c-stat",
-    "ndev",
-    "method",
-    "calibration slope",
-    "calibration in the large",
-    "auc",
-    "rmspe",
-    paste0("varsel", 1:n.para),
-    "option"
-  )
-
-  method_result
+  return(method_result)
 }
