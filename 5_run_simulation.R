@@ -3,11 +3,11 @@ source("2_data_generation.R")
 source("3_performance_measures.R")
 source("4_projpred_functions.R")
 
-cl <- parallel::makeCluster(4)
+cl <- parallel::makeCluster(8)
 doParallel::registerDoParallel(cl)
 
 proj_results <- foreach(
-  i = 1:4,
+  i = 1:8,
   .combine = rbind,
   .packages = c("rstanarm", "projpred", "pROC", "dplyr", "mvtnorm", "speedglm"),
   .export = c("run_projpred_one", "run_one_prior", "generate_ss", "measures")
