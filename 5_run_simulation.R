@@ -10,7 +10,7 @@ doParallel::registerDoParallel(cl)
 proj_results <- foreach(
   i = 1:8,
   .combine = rbind,
-  .packages = c("rstanarm", "projpred", "pROC", "dplyr", "mvtnorm", "speedglm"),
+  .packages = c("rstanarm", "projpred", "pROC", "mvtnorm", "speedglm"),
   .export = c("run_projpred_one", "run_one_prior", "generate_ss", "measures")
 ) %dopar% {
   run_projpred_one(i, ndev, n.para, beta0, beta, nval)
