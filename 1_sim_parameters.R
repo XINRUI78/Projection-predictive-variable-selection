@@ -23,6 +23,8 @@ ndev <- 1538
 ndev1 <- round(ndev/2) # half the recommended sample size
 ndev2 <- round(ndev/4) # one-quarter recommended sample size
 
+library(mvtnorm)
+library(pROC)
 # The optimizer function that obtains the true coefficients
 opt_beta <- function(n.para, prev, c, weights) {
   # Generate predictors (X) from multivariate normal distribution
