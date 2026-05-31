@@ -27,7 +27,7 @@ ndev2 <- round(ndev/4) # one-quarter recommended sample size
 opt_beta <- function(n.para, prev, c, weights) {
   # Generate predictors (X) from multivariate normal distribution
   n = 500000
-  x <- mvtnorm::rmvnorm(n, mean = rep(0, n.para), sigma = diag(n.para))
+  x <- rmvnorm(n, mean = rep(0, n.para), sigma = diag(n.para))
   objective <- function(para){
     beta0 <- para[1]  # Intercept
     s <- para[2]      # Scaling factor
@@ -36,7 +36,7 @@ opt_beta <- function(n.para, prev, c, weights) {
     p <- 1/(1+exp(-eta))
     y <- rbinom(n, 1, p)
     pest <- mean(y)
-    cstat <- pROC::roc(response = as.vector(y), predictor = as.vector(p), levels = c(0, 1), direction = "<")
+    cstat <- roc(response = as.vector(y), predictor = as.vector(p), levels = c(0, 1), direction = "<")
     cest <- as.vector(cstat$auc)
     return((pest - prev)^2 + (cest - c)^2)
   }
