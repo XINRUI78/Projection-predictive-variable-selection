@@ -8,7 +8,7 @@ measures <- function(yval, p_val) {
   off <- speedglm(yval ~ 1, offset = eta_val, family = binomial())
   cal_large <- as.vector(coef(off))
   # AUC
-  cstat <- pROC::roc(response = yval, predictor = as.vector(p_val), levels = c(0, 1), direction = "<")
+  cstat <- roc(response = yval, predictor = as.vector(p_val), levels = c(0, 1), direction = "<")
   auc <- as.vector(cstat$auc)
   # Root mean square prediction error (RMSPE)
   rmspe <- sqrt(mean((p_val - yval)^2))
