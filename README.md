@@ -29,6 +29,9 @@ The main performance measures include:
 ---
 
 ## Main R Files
+### `0_install_packages.R`
+
+Install packages for later use
 
 ### `1_sim_parameters.R`
 
