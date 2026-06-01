@@ -4,7 +4,7 @@ source("2_data_generation.R")
 source("3_performance_measures.R")
 source("4_projpred_functions.R")
 
-cl <- parallel::makeCluster(100)
+cl <- parallel::makeCluster(30)
 doParallel::registerDoParallel(cl)
 
 proj_results <- foreach(
