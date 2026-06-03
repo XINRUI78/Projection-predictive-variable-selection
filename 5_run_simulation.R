@@ -15,7 +15,7 @@ proj_results <- foreach(
   .export = c("run_nor", "generate_ss", "measures")
 ) %dopar% {
   #run_projpred_one(i, ndev, n.para, beta0, beta, nval)
-  run_one_prior(i, ndev, nval, n.para, beta0, beta)
+  run_nor(i, ndev, nval, n.para, beta0, beta)
   }
 
 parallel::stopCluster(cl)
