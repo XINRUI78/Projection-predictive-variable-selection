@@ -117,7 +117,7 @@ run_one_prior <- function(i, ndev, nval, n.para, beta0, beta,
   )
   
   suggest_row <- c(
-    0.3, 0.8, ndev, "nor-1se"),
+    0.3, 0.8, ndev, "nor-1se",
     measures(yval, p_suggest),
     get_selected(vs, size_suggested),
     NA
