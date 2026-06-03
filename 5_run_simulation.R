@@ -12,7 +12,7 @@ proj_results <- foreach(
   i = 1:100,
   .combine = rbind,
   .packages = c("rstanarm", "projpred", "pROC", "mvtnorm", "speedglm"),
-  .export = c("run_projpred_one", "run_one_prior", "generate_ss", "measures")
+  .export = c("run_one_prior", "generate_ss", "measures")
 ) %dopar% {
   #run_projpred_one(i, ndev, n.para, beta0, beta, nval)
   run_one_prior(i, ndev, nval, n.para, beta0, beta)
