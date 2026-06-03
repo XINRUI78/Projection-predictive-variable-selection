@@ -42,7 +42,6 @@ run_nor <- function(i, ndev, nval, n.para, beta0, beta,
   )
   ref_fit$call$formula <- ref_formula
   ref_fit$call$data <- data.dev
-  ref_fit$call$prior <- prior_obj
   ref_fit$call$seed <- SEED
   
   # Reference model predictions
