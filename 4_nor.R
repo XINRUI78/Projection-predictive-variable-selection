@@ -8,7 +8,7 @@ library(doParallel)
 library(MASS)
 
 # Run projpred for one prior
-run_one_prior <- function(i, ndev, nval, n.para, beta0, beta,
+run_nor <- function(i, ndev, nval, n.para, beta0, beta,
                           nterms_max = 30,
                           ns = 2000) {
   set.seed(i)
