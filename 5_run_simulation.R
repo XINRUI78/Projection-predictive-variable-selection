@@ -14,8 +14,9 @@ proj_results <- foreach(
   .packages = c("rstanarm", "projpred", "pROC", "mvtnorm", "speedglm"),
   .export = c("run_projpred_one", "run_one_prior", "generate_ss", "measures")
 ) %dopar% {
-  run_projpred_one(i, ndev, n.para, beta0, beta, nval)
-}
+  #run_projpred_one(i, ndev, n.para, beta0, beta, nval)
+  run_one_prior(i, ndev, nval, n.para, beta0, beta)
+  }
 
 parallel::stopCluster(cl)
 foreach::registerDoSEQ()
