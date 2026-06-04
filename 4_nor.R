@@ -60,7 +60,8 @@ run_nor <- function(i, ndev, nval, n.para, beta0, beta,
   vs <- cv_varsel(
     ref_fit,
     method = "forward",
-    cv_method = "LOO",
+    cv_method = "kfold",
+    K = 10,
     validate_search = TRUE,
     nterms_max = min(nterms_max, n.para),
     seed = SEED + 1000
