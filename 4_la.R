@@ -8,7 +8,7 @@ library(doParallel)
 library(MASS)
 
 # Run projpred for one prior
-run_la <- function(i, ndev, nval, n.para, beta0, beta,
+run_la <- function(i, ndev, nval, n.para, beta0, beta, 
                           nterms_max = 30,
                           ns = 2000) {
   set.seed(i)
@@ -60,7 +60,8 @@ run_la <- function(i, ndev, nval, n.para, beta0, beta,
   vs <- cv_varsel(
     ref_fit,
     method = "forward",
-    cv_method = "LOO",
+    cv_method = "kfold",
+    K = 5,
     validate_search = TRUE,
     nterms_max = min(nterms_max, n.para),
     seed = SEED + 3000
