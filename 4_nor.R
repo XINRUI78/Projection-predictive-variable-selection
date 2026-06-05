@@ -61,7 +61,7 @@ run_nor <- function(i, ndev, nval, n.para, beta0, beta,
     ref_fit,
     method = "forward",
     cv_method = "kfold",
-    K = 10,
+    K = 5,
     validate_search = TRUE,
     nterms_max = min(nterms_max, n.para),
     seed = SEED + 1000
