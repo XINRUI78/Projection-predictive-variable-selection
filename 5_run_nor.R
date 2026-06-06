@@ -35,5 +35,5 @@ colnames(proj_results) <- c(
 )
 
 # Save output
-write.csv(proj_results, "proj_results.csv", row.names = FALSE)
-saveRDS(proj_results, "proj_results.rds")
+write.csv(proj_results, "proj_nor_results.csv", row.names = FALSE)
+saveRDS(proj_results, "proj_nor_results.rds")
