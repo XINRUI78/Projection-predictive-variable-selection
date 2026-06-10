@@ -2,7 +2,7 @@
 
 This repository contains R code for a simulation study evaluating Bayesian projection predictive variable selection for logistic regression models.
 
-The study compares Bayesian reference models with different priors and evaluates projected submodels using external validation datasets.
+The study starts with Bayesian reference models with different priors and then evaluates projected submodels using independent validation datasets.
 
 ---
 
