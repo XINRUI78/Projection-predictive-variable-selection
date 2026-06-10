@@ -1,6 +1,6 @@
 # Projection Predictive Variable Selection Simulation Study
 
-This repository contains R code for a simulation study evaluating Bayesian projection predictive variable selection for logistic regression models. The study starts with Bayesian reference models with normal prior and laplace prior and then evaluates projected submodels using independent validation datasets.
+This repository contains R code for a simulation study evaluating Bayesian projection predictive variable selection in logistic regression models, as well as job scripts for running the simulations on the Myriad cluster. The study considers Bayesian reference models with normal and Laplace priors and assesses the performance of the resulting projected submodels using independent validation datasets.
 
 ---
 
